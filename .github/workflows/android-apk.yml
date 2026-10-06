@@ -4,9 +4,29 @@ on:
   workflow_dispatch:
     inputs:
       app_id:
-        description: "Firebase App Document ID"
+        description: "Firestore App Document ID"
         required: true
         default: "1791224204585"
+        type: string
+      app_name:
+        description: "Android App Name"
+        required: true
+        default: "My New App"
+        type: string
+      package_name:
+        description: "Unique package name, e.g. com.sana.mynewapp"
+        required: true
+        default: "com.myappcreator.client"
+        type: string
+      version_name:
+        description: "Version name, e.g. 1.0.0"
+        required: true
+        default: "1.0.0"
+        type: string
+      version_code:
+        description: "Version code (positive integer)"
+        required: true
+        default: "1"
         type: string
 
   push:
@@ -37,45 +57,61 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Create Firebase config
+      - name: Resolve and validate build values
+        shell: bash
         env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          INPUT_APP_ID: ${{ github.event.inputs.app_id }}
+          INPUT_APP_NAME: ${{ github.event.inputs.app_name }}
+          INPUT_PACKAGE: ${{ github.event.inputs.package_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version_name }}
+          INPUT_VERSION_CODE: ${{ github.event.inputs.version_code }}
         run: |
-          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          APP_ID="${INPUT_APP_ID:-1791224204585}"
+          APP_NAME="${INPUT_APP_NAME:-My New App}"
+          APP_PACKAGE="${INPUT_PACKAGE:-com.myappcreator.client}"
+          APP_VERSION="${INPUT_VERSION:-1.0.0}"
+          APP_VERSION_CODE="${INPUT_VERSION_CODE:-1}"
 
-      - name: Select Firebase App ID
-        env:
-          MANUAL_APP_ID: ${{ github.event.inputs.app_id }}
-        run: |
-          APP_ID="${MANUAL_APP_ID:-1791224204585}"
+          [[ "$APP_ID" =~ ^[0-9]+$ ]] || { echo "Invalid App ID"; exit 1; }
+          [[ "$APP_PACKAGE" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]] || { echo "Invalid package name"; exit 1; }
+          [[ "$APP_VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid version code"; exit 1; }
 
-          if ! [[ "$APP_ID" =~ ^[0-9]+$ ]]; then
-            echo "Invalid App ID: $APP_ID"
-            exit 1
-          fi
+          SAFE_NAME="$(printf '%s' "$APP_NAME" | tr -cs 'A-Za-z0-9._-' '-' | sed 's/^-*//;s/-*$//')"
+          [ -n "$SAFE_NAME" ] || SAFE_NAME="MyApp"
 
-          echo "Building Firebase app: $APP_ID"
-
-          sed -i \
-            "s/private val appDocumentId = \"[^\"]*\"/private val appDocumentId = \"$APP_ID\"/" \
-            app/src/main/java/com/myappcreator/client/MainActivity.kt
-
-          grep 'private val appDocumentId' \
-            app/src/main/java/com/myappcreator/client/MainActivity.kt
-
-          echo "APP_ID=$APP_ID" >> "$GITHUB_ENV"
+          {
+            echo "APP_ID=$APP_ID"
+            echo "APP_NAME=$APP_NAME"
+            echo "APP_PACKAGE=$APP_PACKAGE"
+            echo "APP_VERSION=$APP_VERSION"
+            echo "APP_VERSION_CODE=$APP_VERSION_CODE"
+            echo "SAFE_NAME=$SAFE_NAME"
+          } >> "$GITHUB_ENV"
 
       - name: Build APK
-        run: gradle assembleDebug
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: |
+          test -n "$FIREBASE_API_KEY" || { echo "Missing FIREBASE_API_KEY repository secret"; exit 1; }
+
+          gradle assembleDebug \
+            -PAPP_ID="$APP_ID" \
+            -PAPP_NAME="$APP_NAME" \
+            -PAPP_PACKAGE="$APP_PACKAGE" \
+            -PAPP_VERSION="$APP_VERSION" \
+            -PAPP_VERSION_CODE="$APP_VERSION_CODE" \
+            -PFIREBASE_API_KEY="$FIREBASE_API_KEY" \
+            -PFIREBASE_PROJECT_ID="myappcreator-2bd13" \
+            -PFIREBASE_APPLICATION_ID="1:98660702874:android:dynamic"
 
       - name: Rename APK
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk \
-             "app/build/outputs/apk/debug/MyAppCreator-${APP_ID}.apk"
+             "app/build/outputs/apk/debug/${SAFE_NAME}-${APP_VERSION}-${APP_ID}.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MyAppCreator-${{ env.APP_ID }}
-          path: android-app/app/build/outputs/apk/debug/MyAppCreator-${{ env.APP_ID }}.apk
+          name: ${{ env.SAFE_NAME }}-${{ env.APP_VERSION }}-${{ env.APP_ID }}
+          path: android-app/app/build/outputs/apk/debug/${{ env.SAFE_NAME }}-${{ env.APP_VERSION }}-${{ env.APP_ID }}.apk
           if-no-files-found: error
