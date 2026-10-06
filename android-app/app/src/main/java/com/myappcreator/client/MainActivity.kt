@@ -12,14 +12,28 @@ import android.widget.FrameLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 
 class MainActivity : AppCompatActivity() {
 
-    private val db by lazy { FirebaseFirestore.getInstance() }
-    private val appDocumentId = "1791224204585"
+    private val firebaseApp by lazy {
+        FirebaseApp.getApps(this).firstOrNull()
+            ?: FirebaseApp.initializeApp(
+                this,
+                FirebaseOptions.Builder()
+                    .setApplicationId(BuildConfig.FIREBASE_APPLICATION_ID)
+                    .setApiKey(BuildConfig.FIREBASE_API_KEY)
+                    .setProjectId(BuildConfig.FIREBASE_PROJECT_ID)
+                    .build()
+            )!!
+    }
+
+    private val db by lazy { FirebaseFirestore.getInstance(firebaseApp) }
+    private val appDocumentId by lazy { BuildConfig.APP_DOCUMENT_ID }
 
     private lateinit var webView: WebView
     private lateinit var loading: ProgressBar
