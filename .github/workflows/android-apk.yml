@@ -88,21 +88,33 @@ jobs:
             echo "SAFE_NAME=$SAFE_NAME"
           } >> "$GITHUB_ENV"
 
-      - name: Build APK
+      - name: Generate app runtime configuration
+        shell: bash
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: |
           test -n "$FIREBASE_API_KEY" || { echo "Missing FIREBASE_API_KEY repository secret"; exit 1; }
 
+          mkdir -p app/src/main/java/com/myappcreator/client
+
+          cat > app/src/main/java/com/myappcreator/client/AppBuildConfig.kt <<EOF
+          package com.myappcreator.client
+
+          object AppBuildConfig {
+              const val APP_DOCUMENT_ID = "$APP_ID"
+              const val FIREBASE_API_KEY = "$FIREBASE_API_KEY"
+              const val FIREBASE_PROJECT_ID = "myappcreator-2bd13"
+              const val FIREBASE_APPLICATION_ID = "1:98660702874:android:dynamic"
+          }
+          EOF
+
+      - name: Build APK
+        run: |
           gradle assembleDebug \
-            -PAPP_ID="$APP_ID" \
             -PAPP_NAME="$APP_NAME" \
             -PAPP_PACKAGE="$APP_PACKAGE" \
             -PAPP_VERSION="$APP_VERSION" \
-            -PAPP_VERSION_CODE="$APP_VERSION_CODE" \
-            -PFIREBASE_API_KEY="$FIREBASE_API_KEY" \
-            -PFIREBASE_PROJECT_ID="myappcreator-2bd13" \
-            -PFIREBASE_APPLICATION_ID="1:98660702874:android:dynamic"
+            -PAPP_VERSION_CODE="$APP_VERSION_CODE"
 
       - name: Rename APK
         run: |
