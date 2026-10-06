@@ -1,5 +1,7 @@
 package com.myappcreator.client
 
+import com.myappcreator.client.BuildConfig
+
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Bundle
