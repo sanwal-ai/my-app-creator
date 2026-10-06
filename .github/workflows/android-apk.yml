@@ -1,30 +1,81 @@
 name: Build Android APK
+
 on:
   workflow_dispatch:
+    inputs:
+      app_id:
+        description: "Firebase App Document ID"
+        required: true
+        default: "1791224204585"
+        type: string
+
   push:
     paths:
       - "android-app/**"
       - ".github/workflows/android-apk.yml"
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: android-app
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+
       - name: Create Firebase config
-        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
+      - name: Select Firebase App ID
+        env:
+          MANUAL_APP_ID: ${{ github.event.inputs.app_id }}
+        run: |
+          APP_ID="${MANUAL_APP_ID:-1791224204585}"
+
+          if ! [[ "$APP_ID" =~ ^[0-9]+$ ]]; then
+            echo "Invalid App ID: $APP_ID"
+            exit 1
+          fi
+
+          echo "Building Firebase app: $APP_ID"
+
+          sed -i \
+            "s/private val appDocumentId = \"[^\"]*\"/private val appDocumentId = \"$APP_ID\"/" \
+            app/src/main/java/com/myappcreator/client/MainActivity.kt
+
+          grep 'private val appDocumentId' \
+            app/src/main/java/com/myappcreator/client/MainActivity.kt
+
+          echo "APP_ID=$APP_ID" >> "$GITHUB_ENV"
+
       - name: Build APK
         run: gradle assembleDebug
-      - uses: actions/upload-artifact@v4
+
+      - name: Rename APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             "app/build/outputs/apk/debug/MyAppCreator-${APP_ID}.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: my-app-creator-debug-apk
-          path: android-app/app/build/outputs/apk/debug/app-debug.apk
+          name: MyAppCreator-${{ env.APP_ID }}
+          path: android-app/app/build/outputs/apk/debug/MyAppCreator-${{ env.APP_ID }}.apk
+          if-no-files-found: error
