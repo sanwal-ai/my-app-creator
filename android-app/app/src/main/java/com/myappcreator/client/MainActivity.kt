@@ -1,7 +1,5 @@
 package com.myappcreator.client
 
-import com.myappcreator.client.BuildConfig
-
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Bundle
@@ -27,15 +25,15 @@ class MainActivity : AppCompatActivity() {
             ?: FirebaseApp.initializeApp(
                 this,
                 FirebaseOptions.Builder()
-                    .setApplicationId(BuildConfig.FIREBASE_APPLICATION_ID)
-                    .setApiKey(BuildConfig.FIREBASE_API_KEY)
-                    .setProjectId(BuildConfig.FIREBASE_PROJECT_ID)
+                    .setApplicationId(AppBuildConfig.FIREBASE_APPLICATION_ID)
+                    .setApiKey(AppBuildConfig.FIREBASE_API_KEY)
+                    .setProjectId(AppBuildConfig.FIREBASE_PROJECT_ID)
                     .build()
             )!!
     }
 
     private val db by lazy { FirebaseFirestore.getInstance(firebaseApp) }
-    private val appDocumentId by lazy { BuildConfig.APP_DOCUMENT_ID }
+    private val appDocumentId by lazy { AppBuildConfig.APP_DOCUMENT_ID }
 
     private lateinit var webView: WebView
     private lateinit var loading: ProgressBar
