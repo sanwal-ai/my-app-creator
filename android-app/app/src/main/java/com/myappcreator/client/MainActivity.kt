@@ -40,8 +40,9 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(Color.TRANSPARENT)
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
+            addJavascriptInterface(AppBridge(), "Android")
             settings.apply {
-                javaScriptEnabled = false
+                javaScriptEnabled = true
                 domStorageEnabled = true
                 loadsImagesAutomatically = true
                 mediaPlaybackRequiresUserGesture = true
@@ -73,6 +74,25 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(root)
         listenToFirebase()
+    }
+
+    private inner class AppBridge {
+        @android.webkit.JavascriptInterface
+        fun openUrl(rawUrl: String) {
+            val safe = url(rawUrl)
+            if (safe.isBlank()) return
+            runOnUiThread {
+                webView.loadUrl(safe)
+            }
+        }
+    }
+
+    override fun onBackPressed() {
+        if (::webView.isInitialized && webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            super.onBackPressed()
+        }
     }
 
     private fun listenToFirebase() {
@@ -248,10 +268,12 @@ video,audio{width:100%;margin-top:7px}
 .line{padding:8px 0;border-bottom:1px solid $divider;font-size:12px;word-break:break-word}
 .htmlframe{width:100%;height:280px;border:0;background:#fff;border-radius:9px}
 .foldergrid,.tvgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.tvgrid.list{grid-template-columns:1fr}
-.folder,.channel{padding:11px;border:1px solid rgba(120,120,130,.16);border-radius:12px}
+.folderstack{display:grid;gap:9px}.folder,.channel{padding:11px;border:1px solid rgba(120,120,130,.16);border-radius:12px}
+.folder summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none}.folder summary::-webkit-details-marker{display:none}
 .folder img,.channel img{width:52px;height:52px;object-fit:contain;border-radius:10px}.foldericon{font-size:30px}
 .folder strong,.channel strong,.channel small{display:block}.folder small,.channel small{color:$muted;margin-top:3px}
-.child{font-size:11px;padding-top:5px}
+.folderchildren{display:grid;gap:8px;padding-top:10px}.childrow{display:flex;align-items:center;gap:8px;padding:8px;border-radius:9px;background:rgba(120,120,130,.08)}
+.childrow img{width:38px;height:38px;object-fit:cover;border-radius:8px}.childinfo{flex:1;min-width:0}.childinfo strong,.childinfo small{display:block}.childinfo small{color:$muted;font-size:10px}.miniicon{font-size:18px}
 .topnav{position:sticky;top:82px;z-index:18;display:flex;gap:7px;overflow:auto;padding:9px 10px;background:$cardBg;border-bottom:1px solid $divider}
 .topnav a,.topnav span,.sidenav a{white-space:nowrap;text-decoration:none;padding:7px 9px;border-radius:8px;background:rgba(120,120,130,.12);font-size:10px}
 .sidenav{position:fixed;top:0;bottom:0;width:108px;background:$cardBg;z-index:30;padding:14px 7px;display:flex;flex-direction:column;gap:7px;overflow:auto;box-shadow:0 0 20px rgba(0,0,0,.12)}
@@ -307,7 +329,7 @@ $bottomNav
                 """
                 ${heading(str(c["title"]))}
                 ${p(str(c["description"]), "copy")}
-                ${if (website.isNotBlank()) """<div class="url">${html(website)}</div><a class="btn" href="${attr(website)}">Open Website</a>""" else ""}
+                ${if (website.isNotBlank()) """<div class="url">${html(website)}</div><button class="btn" onclick="Android.openUrl('${js(website)}')">Open Website</button>""" else ""}
                 """
             }
 
@@ -341,7 +363,7 @@ $bottomNav
                         ${image(url(str(item["imageUrl"])), "")}
                         <strong>${html(str(item["title"]))}</strong>
                         <span>${html(str(item["description"]))}</span>
-                        ${if (link.isNotBlank()) """<a class="btn" href="${attr(link)}">Open</a>""" else ""}
+                        ${if (link.isNotBlank()) """<button class="btn" onclick="Android.openUrl('${js(link)}')">Open</button>""" else ""}
                     </div>"""
                 }
                 """${heading(str(c["title"]))}${p(str(c["description"]), "muted")}<div class="gallery ${attr(layout)}">$items</div>"""
@@ -375,7 +397,7 @@ $bottomNav
                 ${image(url(str(c["thumbnailUrl"])), "image")}
                 ${heading(str(c["title"]))}
                 ${p(str(c["description"]), "copy")}
-                ${if (game.isNotBlank()) """<a class="btn" href="${attr(game)}">Play Game</a>""" else ""}
+                ${if (game.isNotBlank()) """<button class="btn" onclick="Android.openUrl('${js(game)}')">Play Game</button>""" else ""}
                 """
             }
 
@@ -393,29 +415,45 @@ $bottomNav
         val items = list(c["items"]).map { obj(it) }
         val roots = items.filter { str(it["parentId"]).isBlank() }
 
+        fun targetButton(item: Map<String, Any?>): String {
+            val target = url(str(item["targetUrl"]))
+            if (target.isBlank()) return ""
+            val type = str(item["targetType"], "Website")
+            val label = when (type) {
+                "Video" -> "Watch Video"
+                "Live TV" -> "Watch"
+                "Game" -> "Play Game"
+                else -> "Open"
+            }
+            return """<button class="btn" onclick="Android.openUrl('${js(target)}')">${html(label)}</button>"""
+        }
+
         val cards = roots.joinToString("") { folder ->
             val folderId = str(folder["id"])
             val children = items.filter { str(it["parentId"]) == folderId }
-            val childHtml = children.joinToString("") { child ->
-                val target = url(str(child["targetUrl"]))
-                val label = html(str(child["name"], "Item"))
-                if (target.isNotBlank())
-                    """<div class="child">↳ <a href="${attr(target)}">$label</a></div>"""
-                else
-                    """<div class="child">↳ $label</div>"""
+            val childrenHtml = children.joinToString("") { child ->
+                val icon = url(str(child["iconUrl"]))
+                """<div class="childrow">
+                    ${if (icon.isNotBlank()) """<img src="${attr(icon)}" alt="">""" else """<span class="miniicon">↳</span>"""}
+                    <div class="childinfo"><strong>${html(str(child["name"], "Item"))}</strong><small>${html(str(child["targetType"], "Folder"))}</small></div>
+                    ${targetButton(child)}
+                </div>"""
             }
 
-            val target = url(str(folder["targetUrl"]))
-            """<div class="folder">
-                ${if (url(str(folder["iconUrl"])).isNotBlank()) image(url(str(folder["iconUrl"])), "") else """<div class="foldericon">📁</div>"""}
-                <strong>${html(str(folder["name"], "Folder"))}</strong>
-                <small>${children.size} items</small>
-                $childHtml
-                ${if (target.isNotBlank()) """<a class="btn" href="${attr(target)}">Open</a>""" else ""}
-            </div>"""
+            """<details class="folder">
+                <summary>
+                    ${if (url(str(folder["iconUrl"])).isNotBlank()) image(url(str(folder["iconUrl"])), "") else """<div class="foldericon">📁</div>"""}
+                    <div><strong>${html(str(folder["name"], "Folder"))}</strong><small>${children.size} items</small></div>
+                </summary>
+                <div class="folderchildren">
+                    $childrenHtml
+                    ${targetButton(folder)}
+                    ${if (children.isEmpty() && url(str(folder["targetUrl"])).isBlank()) """<div class="muted">Folder empty hai.</div>""" else ""}
+                </div>
+            </details>"""
         }
 
-        return """${heading(str(c["title"]))}${p(str(c["description"]), "muted")}<div class="foldergrid">$cards</div>${if (roots.isEmpty()) """<p class="muted">No folders yet.</p>""" else ""}"""
+        return """${heading(str(c["title"]))}${p(str(c["description"]), "muted")}<div class="folderstack">$cards</div>${if (roots.isEmpty()) """<p class="muted">No folders yet.</p>""" else ""}"""
     }
 
     private fun renderTv(c: Map<String, Any?>): String {
@@ -430,7 +468,7 @@ $bottomNav
                 <strong>${html(str(channel["name"], "Channel"))}</strong>
                 ${if (str(channel["category"]).isNotBlank()) """<small>${html(str(channel["category"]))}</small>""" else ""}
                 ${p(str(channel["description"]), "muted")}
-                ${if (stream.isNotBlank()) """<a class="btn" href="${attr(stream)}">Watch</a>""" else ""}
+                ${if (stream.isNotBlank()) """<button class="btn" onclick="Android.openUrl('${js(stream)}')">Watch</button>""" else ""}
             </div>"""
         }
 
@@ -495,6 +533,12 @@ $bottomNav
             .replace("'", "&#39;")
 
     private fun attr(value: String) = html(value)
+
+    private fun js(value: String) =
+        value.replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\r", "")
+            .replace("\n", "\\n")
 
     private fun safeCss(value: String) =
         value.replace("</style", "<\\/style", ignoreCase = true)
