@@ -2,13 +2,18 @@ package com.myappcreator.client
 
 import android.annotation.SuppressLint
 import android.graphics.Color
+import android.graphics.BitmapFactory
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -17,6 +22,8 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
+import java.net.URL
+import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
@@ -38,6 +45,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var loading: ProgressBar
     private lateinit var errorText: TextView
+    private lateinit var splashView: LinearLayout
+    private lateinit var splashIcon: ImageView
+    private lateinit var splashName: TextView
 
     private var appListener: ListenerRegistration? = null
     private var sectionsListener: ListenerRegistration? = null
@@ -72,6 +82,30 @@ class MainActivity : AppCompatActivity() {
             visibility = View.GONE
         }
 
+        splashIcon = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(96), dp(96))
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = roundedDrawable("#FFFFFF", 24f)
+            clipToOutline = true
+        }
+
+        splashName = TextView(this).apply {
+            text = "Loading..."
+            textSize = 24f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(24, 22, 24, 0)
+        }
+
+        splashView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(28, 28, 28, 28)
+            background = roundedDrawable("#5b5ce2", 0f)
+            addView(splashIcon)
+            addView(splashName)
+        }
+
         root.addView(webView, FrameLayout.LayoutParams(-1, -1))
         root.addView(
             loading,
@@ -85,6 +119,7 @@ class MainActivity : AppCompatActivity() {
                 gravity = android.view.Gravity.CENTER
             }
         )
+        root.addView(splashView, FrameLayout.LayoutParams(-1, -1))
 
         setContentView(root)
         listenToFirebase()
@@ -124,6 +159,7 @@ class MainActivity : AppCompatActivity() {
                     return@addSnapshotListener
                 }
                 appData = snapshot.data ?: emptyMap()
+                updateSplashFromAppData()
                 render()
             }
 
@@ -153,6 +189,9 @@ class MainActivity : AppCompatActivity() {
         loading.visibility = View.GONE
         errorText.visibility = View.GONE
         webView.visibility = View.VISIBLE
+        splashView.animate().alpha(0f).setDuration(300).withEndAction {
+            splashView.visibility = View.GONE
+        }.start()
 
         webView.loadDataWithBaseURL(
             "https://app.local/",
@@ -562,8 +601,43 @@ $bottomNav
             .replace(Regex("(?i)\\son\\w+\\s*=\\s*(['\"]).*?\\1"), "")
             .replace(Regex("(?i)javascript:"), "")
 
+    private fun updateSplashFromAppData() {
+        val appName = str(appData["name"], "My App")
+        val design = obj(appData["design"])
+        val primary = color(str(design["primaryColor"], str(appData["primaryColor"], "#5b5ce2")))
+        val iconUrl = url(str(design["iconUrl"], ""))
+
+        splashName.text = appName
+        splashView.background = roundedDrawable(primary, 0f)
+
+        if (iconUrl.isNotBlank()) {
+            thread {
+                try {
+                    val bitmap = URL(iconUrl).openStream().use { BitmapFactory.decodeStream(it) }
+                    if (bitmap != null) {
+                        runOnUiThread { splashIcon.setImageBitmap(bitmap) }
+                    }
+                } catch (_: Exception) {
+                    // Keep the splash clean if the remote icon cannot be loaded.
+                }
+            }
+        }
+    }
+
+    private fun roundedDrawable(hexColor: String, radiusDp: Float): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(Color.parseColor(color(hexColor)))
+            cornerRadius = dp(radiusDp.toInt()).toFloat()
+        }
+    }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
     private fun showError(message: String) {
         loading.visibility = View.GONE
+        splashView.visibility = View.GONE
         webView.visibility = View.GONE
         errorText.visibility = View.VISIBLE
         errorText.text = message
