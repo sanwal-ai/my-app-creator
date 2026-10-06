@@ -9,7 +9,7 @@ import com.google.firebase.firestore.Query
 
 class MainActivity : AppCompatActivity() {
  private val db by lazy { FirebaseFirestore.getInstance() }
- private val appDocumentId = "REPLACE_WITH_APP_ID"
+ private val appDocumentId = "1791224204585"
 
  override fun onCreate(savedInstanceState: Bundle?) {
   super.onCreate(savedInstanceState)
