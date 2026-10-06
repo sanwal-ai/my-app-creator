@@ -1,18 +1,19 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    
 }
 
-val dynamicAppId =
-    (project.findProperty("APP_PACKAGE") as String?)
+fun prop(name: String, fallback: String): String =
+    (project.findProperty(name) as String?)
+        ?.trim()
         ?.takeIf { it.isNotBlank() }
-        ?: "com.myappcreator.client"
+        ?: fallback
 
-val dynamicVersionName =
-    (project.findProperty("APP_VERSION") as String?)
-        ?.takeIf { it.isNotBlank() }
-        ?: "1.0.0"
+val dynamicAppId = prop("APP_PACKAGE", "com.myappcreator.client")
+val dynamicAppName = prop("APP_NAME", "My App Creator")
+val dynamicVersionName = prop("APP_VERSION", "1.0.0")
+val dynamicVersionCode =
+    prop("APP_VERSION_CODE", "1").toIntOrNull()?.coerceAtLeast(1) ?: 1
 
 android {
     namespace = "com.myappcreator.client"
@@ -22,14 +23,8 @@ android {
         applicationId = dynamicAppId
         minSdk = 24
         targetSdk = 35
-
-        versionCode = 1
+        versionCode = dynamicVersionCode
         versionName = dynamicVersionName
-
-        val dynamicAppName =
-            (project.findProperty("APP_NAME") as String?)
-                ?.takeIf { it.isNotBlank() }
-                ?: "My App Creator"
 
         manifestPlaceholders["appName"] = dynamicAppName
     }
@@ -45,23 +40,10 @@ android {
 }
 
 dependencies {
-    implementation(
-        platform("com.google.firebase:firebase-bom:33.7.0")
-    )
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-firestore")
 
-    implementation(
-        "com.google.firebase:firebase-firestore"
-    )
-
-    implementation(
-        "androidx.core:core-ktx:1.15.0"
-    )
-
-    implementation(
-        "androidx.appcompat:appcompat:1.7.0"
-    )
-
-    implementation(
-        "com.google.android.material:material:1.12.0"
-    )
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
 }
