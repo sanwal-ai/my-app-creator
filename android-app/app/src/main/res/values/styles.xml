@@ -1,0 +1,1 @@
+<resources><style name="Theme.MyAppCreator" parent="Theme.MaterialComponents.DayNight.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:colorAccent">#5B5CE2</item></style></resources>
