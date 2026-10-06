@@ -4,16 +4,34 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val dynamicAppId =
+    (project.findProperty("APP_PACKAGE") as String?)
+        ?.takeIf { it.isNotBlank() }
+        ?: "com.myappcreator.client"
+
+val dynamicVersionName =
+    (project.findProperty("APP_VERSION") as String?)
+        ?.takeIf { it.isNotBlank() }
+        ?: "1.0.0"
+
 android {
     namespace = "com.myappcreator.client"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.myappcreator.client"
+        applicationId = dynamicAppId
         minSdk = 24
         targetSdk = 35
+
         versionCode = 1
-        versionName = "1.0"
+        versionName = dynamicVersionName
+
+        val dynamicAppName =
+            (project.findProperty("APP_NAME") as String?)
+                ?.takeIf { it.isNotBlank() }
+                ?: "My App Creator"
+
+        manifestPlaceholders["appName"] = dynamicAppName
     }
 
     compileOptions {
@@ -27,10 +45,23 @@ android {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    implementation("com.google.firebase:firebase-firestore")
+    implementation(
+        platform("com.google.firebase:firebase-bom:33.7.0")
+    )
 
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
+    implementation(
+        "com.google.firebase:firebase-firestore"
+    )
+
+    implementation(
+        "androidx.core:core-ktx:1.15.0"
+    )
+
+    implementation(
+        "androidx.appcompat:appcompat:1.7.0"
+    )
+
+    implementation(
+        "com.google.android.material:material:1.12.0"
+    )
 }
