@@ -143,75 +143,153 @@ jobs:
           }
           EOF
 
+      # ---------------------------------------------------------
+      # Launcher icon system
+      # A default icon is ALWAYS created first.
+      # This prevents @mipmap/ic_launcher missing build errors.
+      # ---------------------------------------------------------
+
       - name: Install launcher icon tools
-        if: env.ICON_URL != ''
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
-      - name: Download and generate launcher icons
-        if: env.ICON_URL != ''
+      - name: Create default launcher icon
         shell: bash
         run: |
-          echo "Downloading launcher icon..."
-
-          curl \
-            --fail \
-            --location \
-            --silent \
-            --show-error \
-            --max-time 30 \
-            "$ICON_URL" \
-            --output /tmp/app-icon-source
-
-          test -s /tmp/app-icon-source || {
-            echo "Downloaded icon is empty"
-            exit 1
-          }
-
           mkdir -p app/src/main/res/mipmap-mdpi
           mkdir -p app/src/main/res/mipmap-hdpi
           mkdir -p app/src/main/res/mipmap-xhdpi
           mkdir -p app/src/main/res/mipmap-xxhdpi
           mkdir -p app/src/main/res/mipmap-xxxhdpi
 
-          convert /tmp/app-icon-source \
-            -auto-orient \
-            -resize 48x48^ \
+          convert \
+            -size 512x512 \
+            xc:"#5b5ce2" \
             -gravity center \
-            -extent 48x48 \
+            -fill white \
+            -pointsize 220 \
+            -font DejaVu-Sans-Bold \
+            -annotate 0 "A" \
+            /tmp/default-launcher.png
+
+          convert /tmp/default-launcher.png \
+            -resize 48x48 \
             PNG32:app/src/main/res/mipmap-mdpi/ic_launcher.png
 
-          convert /tmp/app-icon-source \
-            -auto-orient \
-            -resize 72x72^ \
-            -gravity center \
-            -extent 72x72 \
+          convert /tmp/default-launcher.png \
+            -resize 72x72 \
             PNG32:app/src/main/res/mipmap-hdpi/ic_launcher.png
 
-          convert /tmp/app-icon-source \
-            -auto-orient \
-            -resize 96x96^ \
-            -gravity center \
-            -extent 96x96 \
+          convert /tmp/default-launcher.png \
+            -resize 96x96 \
             PNG32:app/src/main/res/mipmap-xhdpi/ic_launcher.png
 
-          convert /tmp/app-icon-source \
-            -auto-orient \
-            -resize 144x144^ \
-            -gravity center \
-            -extent 144x144 \
+          convert /tmp/default-launcher.png \
+            -resize 144x144 \
             PNG32:app/src/main/res/mipmap-xxhdpi/ic_launcher.png
 
-          convert /tmp/app-icon-source \
-            -auto-orient \
-            -resize 192x192^ \
-            -gravity center \
-            -extent 192x192 \
+          convert /tmp/default-launcher.png \
+            -resize 192x192 \
             PNG32:app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
-          echo "Launcher icons generated successfully."
+          echo "Default launcher icon created."
+
+      - name: Download custom launcher icon
+        if: env.ICON_URL != ''
+        shell: bash
+        run: |
+          echo "Custom icon URL received."
+
+          if curl \
+            --fail \
+            --location \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "$ICON_URL" \
+            --output /tmp/custom-launcher-icon
+          then
+            echo "Custom launcher icon downloaded."
+
+            if identify /tmp/custom-launcher-icon > /dev/null 2>&1; then
+
+              if \
+                convert /tmp/custom-launcher-icon \
+                  -auto-orient \
+                  -resize '48x48^' \
+                  -gravity center \
+                  -extent 48x48 \
+                  PNG32:app/src/main/res/mipmap-mdpi/ic_launcher.png \
+                && \
+                convert /tmp/custom-launcher-icon \
+                  -auto-orient \
+                  -resize '72x72^' \
+                  -gravity center \
+                  -extent 72x72 \
+                  PNG32:app/src/main/res/mipmap-hdpi/ic_launcher.png \
+                && \
+                convert /tmp/custom-launcher-icon \
+                  -auto-orient \
+                  -resize '96x96^' \
+                  -gravity center \
+                  -extent 96x96 \
+                  PNG32:app/src/main/res/mipmap-xhdpi/ic_launcher.png \
+                && \
+                convert /tmp/custom-launcher-icon \
+                  -auto-orient \
+                  -resize '144x144^' \
+                  -gravity center \
+                  -extent 144x144 \
+                  PNG32:app/src/main/res/mipmap-xxhdpi/ic_launcher.png \
+                && \
+                convert /tmp/custom-launcher-icon \
+                  -auto-orient \
+                  -resize '192x192^' \
+                  -gravity center \
+                  -extent 192x192 \
+                  PNG32:app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+              then
+                echo "Custom launcher icon generated successfully."
+              else
+                echo "::warning::Custom icon conversion failed. Restoring default icon."
+
+                convert /tmp/default-launcher.png -resize 48x48 \
+                  PNG32:app/src/main/res/mipmap-mdpi/ic_launcher.png
+
+                convert /tmp/default-launcher.png -resize 72x72 \
+                  PNG32:app/src/main/res/mipmap-hdpi/ic_launcher.png
+
+                convert /tmp/default-launcher.png -resize 96x96 \
+                  PNG32:app/src/main/res/mipmap-xhdpi/ic_launcher.png
+
+                convert /tmp/default-launcher.png -resize 144x144 \
+                  PNG32:app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+
+                convert /tmp/default-launcher.png -resize 192x192 \
+                  PNG32:app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+              fi
+
+            else
+              echo "::warning::Downloaded URL is not a valid image. Default launcher icon will be used."
+            fi
+
+          else
+            echo "::warning::Custom icon download failed. Default launcher icon will be used."
+          fi
+
+      - name: Verify launcher icons
+        shell: bash
+        run: |
+          test -f app/src/main/res/mipmap-mdpi/ic_launcher.png
+          test -f app/src/main/res/mipmap-hdpi/ic_launcher.png
+          test -f app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          test -f app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          test -f app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+          echo "Launcher icons verified successfully."
 
       - name: Build APK
         run: |
